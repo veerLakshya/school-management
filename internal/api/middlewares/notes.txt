@@ -1,0 +1,49 @@
+Middleware in an api servers various purposes-
+    -logging
+    -authentication and authorization
+    -data handling
+    -error handling
+
+# Concept of 'next' in Middlewares-
+    -http.Handler` Interface
+        type Handler interface {
+            ServerHTTP(ResponseWriter, *Request)
+        }
+    -Middleware chaining
+    -chaining handlers
+
+# CORS Middleware-
+    -cross-origin resource sharing
+    -allow specific origins
+    -http methods
+    -headers
+    -credentials
+    -preflight requests
+
+
+# Response Time Middleware - will calculate the time to fullfil a requrs
+
+# Compression Middleware
+    *Why Use Compression Middleware?
+        -improved performance
+        -reducuced bandwidth usage
+        -better user exprerience
+        -easy integration
+
+    *When we might not need compression middleware
+        -small payloads
+        -already compressed assets
+        -cpu overhead
+
+# Rate Limmiter Middleware
+    *
+
+
+# HPP Middleware - HTTP Parameter Pollution
+    what it does?
+        -prevention of parameter Pollution
+        -normalization
+        -security
+        -flexibility
+
+    path parameters in the url (eg, `/resource/:id`) are not subject to pollution in the same way as query or body parameters, so HPP does not address them

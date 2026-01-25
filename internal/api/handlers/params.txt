@@ -1,0 +1,13 @@
+// PATH PARAMS --> teachers/{id}
+	fmt.Println("/teachers  handler", r.Method, r.URL.Path)
+	path := strings.TrimPrefix(r.URL.Path, "/teachers/")
+	userId := strings.TrimSuffix(path, "/")
+	fmt.Println("The id is: ", userId)
+
+// QUERY PARAMS --> teachers/?key=value&query=value2&sortby=email&sortorder=ASC
+	fmt.Println("Query Params: ", r.URL.Query())
+	queryParams := r.URL.Query()
+	sortBy := queryParams.Get("sortby")
+	sortOrder := queryParams.Get("sortorder")
+	fmt.Println("Sort By: ", sortBy)
+	fmt.Println("Sort Order: ", sortOrder)
