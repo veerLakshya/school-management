@@ -6,9 +6,6 @@ import (
 )
 
 func NewRouter() *http.ServeMux {
-
-	handlers.Init()
-
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", handlers.RootHandler)
