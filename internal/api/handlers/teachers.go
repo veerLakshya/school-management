@@ -13,23 +13,20 @@ import (
 	"strings"
 )
 
-func TeachersHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		getTeachersHandler(w, r)
-	case http.MethodPost:
-		postTeachersHandler(w, r)
-	case http.MethodPut:
-		updateTeachersHandler(w, r)
-	case http.MethodPatch:
-		patchTeacherHandler(w, r)
-	case http.MethodDelete:
-		deleteTeacherHandler(w, r)
-	}
-
-	// fmt.Fprintf(w, "Hello Root Route")
-	// w.Write([]byte("Hello Teachers Route"))
-}
+// func TeachersHandler(w http.ResponseWriter, r *http.Request) {
+// switch r.Method {
+// case http.MethodGet:
+// 	getTeachersHandler(w, r)
+// case http.MethodPost:
+// 	postTeachersHandler(w, r)
+// case http.MethodPut:
+// 	updateTeachersHandler(w, r)
+// case http.MethodPatch:
+// 	patchTeacherHandler(w, r)
+// case http.MethodDelete:
+// 	deleteTeacherHandler(w, r)
+// }
+// }
 
 func isValidSortOrder(order string) bool {
 	return order == "asc" || order == "desc"
@@ -46,7 +43,7 @@ func isValidSortField(field string) bool {
 	return validFields[field]
 }
 
-func getTeachersHandler(w http.ResponseWriter, r *http.Request) {
+func GetTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("getTeachersHandler:", r.URL)
 
 	db, err := sqlconnect.ConnectDB()
@@ -57,48 +54,54 @@ func getTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	idStr := strings.TrimPrefix(r.URL.Path, "/teachers/")
+	query := "SELECT id, first_name, last_name, email, class, subject FROM teachers WHERE 1 = 1"
+	var args []interface{}
 
-	// Handle Query Parameters
-	if idStr == "" {
+	query, args = addFilters(r, query, args)
 
-		query := "SELECT id, first_name, last_name, email, class, subject FROM teachers WHERE 1 = 1"
-		var args []interface{}
+	// also handling - teachers/?sortby=name:asc&sortby=class:desc
+	query = addSorting(r, query)
 
-		query, args = addFilters(r, query, args)
-
-		// also handling - teachers/?sortby=name:asc&sortby=class:desc
-		query = addSorting(r, query)
-
-		rows, err := db.Query(query, args...)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Error retrieving data: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		teacherList := make([]models.Teacher, 0)
-		for rows.Next() {
-			var teacher models.Teacher
-			err = rows.Scan(&teacher.ID, &teacher.FirstName, &teacher.LastName, &teacher.Class, &teacher.Email, &teacher.Subject)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Error scanning row: %v", err), http.StatusInternalServerError)
-				return
-			}
-			teacherList = append(teacherList, teacher)
-		}
-		response := struct {
-			Status string           `json:"status"`
-			Count  int              `json:"count"`
-			Data   []models.Teacher `json:"data"`
-		}{
-			Status: "success",
-			Count:  len(teacherList),
-			Data:   teacherList,
-		}
-		w.Header().Set("X-Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error retrieving data: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	teacherList := make([]models.Teacher, 0)
+	for rows.Next() {
+		var teacher models.Teacher
+		err = rows.Scan(&teacher.ID, &teacher.FirstName, &teacher.LastName, &teacher.Class, &teacher.Email, &teacher.Subject)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error scanning row: %v", err), http.StatusInternalServerError)
+			return
+		}
+		teacherList = append(teacherList, teacher)
+	}
+	response := struct {
+		Status string           `json:"status"`
+		Count  int              `json:"count"`
+		Data   []models.Teacher `json:"data"`
+	}{
+		Status: "success",
+		Count:  len(teacherList),
+		Data:   teacherList,
+	}
+	w.Header().Set("X-Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func GetTeacherHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("getTeacherHandler:", r.URL)
+
+	db, err := sqlconnect.ConnectDB()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error connection to database: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	idStr := r.PathValue("id")
 
 	//Handle Path Parameter
 	id, err := strconv.Atoi(idStr)
@@ -165,7 +168,7 @@ func addFilters(r *http.Request, query string, args []interface{}) (string, []in
 	return query, args
 }
 
-func postTeachersHandler(w http.ResponseWriter, r *http.Request) {
+func PostTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("postTeachersHandler:", r.URL, r.Body)
 	db, err := sqlconnect.ConnectDB()
 
@@ -227,7 +230,7 @@ func postTeachersHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // PUT /teachers/{id}  - PUT replaces all fields even if left empty
-func updateTeachersHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateTeachersHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("update teachers handler:", r.URL)
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/teachers/")
@@ -279,7 +282,7 @@ func updateTeachersHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // PATCH /teachers/{id} - PATCH only updated the given fields
-func patchTeacherHandler(w http.ResponseWriter, r *http.Request) {
+func PatchTeacherHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("patch teachers handler:", r.URL)
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/teachers/")
@@ -361,7 +364,7 @@ func patchTeacherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // DELETE /teachers/{id}
-func deleteTeacherHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteTeacherHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("delete teachers handler:", r.URL)
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/teachers/")
