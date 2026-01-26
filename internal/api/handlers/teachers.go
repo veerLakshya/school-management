@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"school-management/internal/models"
 	"school-management/internal/repository/sqlconnect"
 	"strconv"
@@ -18,16 +19,31 @@ func TeachersHandler(w http.ResponseWriter, r *http.Request) {
 		getTeachersHandler(w, r)
 	case http.MethodPost:
 		postTeachersHandler(w, r)
-	case http.MethodDelete:
-		w.Write([]byte("Hello DELETE on Teachers Route"))
-	case http.MethodPatch:
-		w.Write([]byte("Hello PATCH on Teachers Route"))
 	case http.MethodPut:
-		w.Write([]byte("Hello PUT on Teachers Route"))
+		updateTeachersHandler(w, r)
+	case http.MethodPatch:
+		patchTeacherHandler(w, r)
+	case http.MethodDelete:
+		deleteTeacherHandler(w, r)
 	}
 
 	// fmt.Fprintf(w, "Hello Root Route")
 	// w.Write([]byte("Hello Teachers Route"))
+}
+
+func isValidSortOrder(order string) bool {
+	return order == "asc" || order == "desc"
+}
+
+func isValidSortField(field string) bool {
+	validFields := map[string]bool{
+		"first_name": true,
+		"last_name":  true,
+		"email":      true,
+		"class":      true,
+		"subject":    true,
+	}
+	return validFields[field]
 }
 
 func getTeachersHandler(w http.ResponseWriter, r *http.Request) {
@@ -49,16 +65,10 @@ func getTeachersHandler(w http.ResponseWriter, r *http.Request) {
 		query := "SELECT id, first_name, last_name, email, class, subject FROM teachers WHERE 1 = 1"
 		var args []interface{}
 
-		// if firstName != "" {
-		// 	query += " AND first_name = ?"
-		// 	args = append(args, firstName)
-		// }
-		// if lastName != "" {
-		// 	query += " AND last_name = ?"
-		// 	args = append(args, lastName)
-		// }
-
 		query, args = addFilters(r, query, args)
+
+		// also handling - teachers/?sortby=name:asc&sortby=class:desc
+		query = addSorting(r, query)
 
 		rows, err := db.Query(query, args...)
 		if err != nil {
@@ -111,6 +121,29 @@ func getTeachersHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-type", "application/json")
 	json.NewEncoder(w).Encode(teacher)
+}
+
+func addSorting(r *http.Request, query string) string {
+	sortParams := r.URL.Query()["sortby"]
+	if len(sortParams) > 0 {
+		query += " ORDER BY"
+		for i, param := range sortParams {
+			// sortby=name:desc
+			parts := strings.Split(param, ":")
+			if len(parts) != 2 {
+				continue
+			}
+			field, order := parts[0], parts[1]
+			if !isValidSortField(field) || !isValidSortOrder(order) {
+				continue
+			}
+			if i > 0 {
+				query += ","
+			}
+			query += " " + field + " " + order
+		}
+	}
+	return query
 }
 
 func addFilters(r *http.Request, query string, args []interface{}) (string, []interface{}) {
@@ -191,4 +224,191 @@ func postTeachersHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(response)
 
+}
+
+// PUT /teachers/{id}  - PUT replaces all fields even if left empty
+func updateTeachersHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("update teachers handler:", r.URL)
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/teachers/")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Println("error parsing id: ", err)
+		http.Error(w, "Invalid teacher id", http.StatusBadRequest)
+		return
+	}
+
+	var updatedTeacher models.Teacher
+
+	err = json.NewDecoder(r.Body).Decode(&updatedTeacher)
+	if err != nil {
+		log.Println("error decoding body: ", err)
+		http.Error(w, "Invalid Request payload", http.StatusBadRequest)
+		return
+	}
+
+	db, err := sqlconnect.ConnectDB()
+	if err != nil {
+		log.Println("error connecting to db: ", err)
+		http.Error(w, "Unable to connect to db", http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	var existingTeacher models.Teacher
+	err = db.QueryRow("SELECT id, first_name, last_name, email, class, subject FROM teachers WHERE id = ?", id).Scan(&existingTeacher.ID, &existingTeacher.FirstName, &existingTeacher.LastName, &existingTeacher.Email, &existingTeacher.Class, &existingTeacher.Subject)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Teacher not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, "Unable to retrieve data", http.StatusInternalServerError)
+		log.Println("error retrieving teacher data: ", err)
+		return
+	}
+
+	updatedTeacher.ID = existingTeacher.ID
+	_, err = db.Exec("UPDATE teachers SET first_name = ?, last_name = ?, email = ?, class = ?, subject = ? WHERE id = ?", updatedTeacher.FirstName, updatedTeacher.LastName, updatedTeacher.Email, updatedTeacher.Class, updatedTeacher.Subject, updatedTeacher.ID)
+	if err != nil {
+		log.Println("Error updating teacher:", err)
+		http.Error(w, "Error updating teacher", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedTeacher)
+}
+
+// PATCH /teachers/{id} - PATCH only updated the given fields
+func patchTeacherHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("patch teachers handler:", r.URL)
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/teachers/")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Println("Error converting id: ", err)
+		http.Error(w, "Invalid teacher id", http.StatusBadRequest)
+		return
+	}
+
+	var updates map[string]string
+	err = json.NewDecoder(r.Body).Decode(&updates)
+	if err != nil {
+		log.Println("Error decoding body: ", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	db, err := sqlconnect.ConnectDB()
+	if err != nil {
+		log.Println("error connecting to db: ", err)
+		http.Error(w, "Unable to connect to db", http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	var existingTeacher models.Teacher
+	err = db.QueryRow("SELECT id, first_name, last_name, email, class, subject FROM teachers where id = ?", id).Scan(&existingTeacher.ID, &existingTeacher.FirstName, &existingTeacher.LastName, &existingTeacher.Email, &existingTeacher.Class, &existingTeacher.Subject)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Teacher not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Unable to retrieve data", http.StatusInternalServerError)
+		return
+	}
+
+	// Apply updates in existing teacher here
+	// for k, v := range updates {
+	// 	switch k {
+	// 	case "first_name":
+	// 		existingTeacher.FirstName = v
+	// 	case "last_name":
+	// 		existingTeacher.LastName = v
+	// 	case "email":
+	// 		existingTeacher.Email = v
+	// 	case "class":
+	// 		existingTeacher.Class = v
+	// 	case "subject":
+	// 		existingTeacher.Subject = v
+	// 	}
+	// }
+
+	// Apply updates using reflect
+	teacherVal := reflect.ValueOf(&existingTeacher).Elem()
+	teacherType := teacherVal.Type()
+
+	for k, v := range updates {
+		for i := 0; i < teacherVal.NumField(); i++ {
+			field := teacherType.Field(i)
+			if field.Tag.Get("json") == k+",omitempty" {
+				if teacherVal.Field(i).CanSet() {
+					fieldVal := teacherVal.Field(i)
+					fieldVal.Set(reflect.ValueOf(v).Convert(teacherVal.Field(i).Type()))
+				}
+			}
+		}
+	}
+
+	_, err = db.Exec("UPDATE teachers SET first_name = ?, last_name = ?, email = ?, class = ?, subject = ? WHERE id = ?", existingTeacher.FirstName, existingTeacher.LastName, existingTeacher.Email, existingTeacher.Class, existingTeacher.Subject, existingTeacher.ID)
+	if err != nil {
+		log.Println("Error updating teacher: ", err)
+		http.Error(w, "Unable to update teacher", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(existingTeacher)
+}
+
+// DELETE /teachers/{id}
+func deleteTeacherHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("delete teachers handler:", r.URL)
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/teachers/")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Println("Error converting id: ", err)
+		http.Error(w, "Invalid teacher id", http.StatusBadRequest)
+		return
+	}
+
+	db, err := sqlconnect.ConnectDB()
+	if err != nil {
+		log.Println("error connecting to db: ", err)
+		http.Error(w, "Unable to connect to db", http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	result, err := db.Exec("DELETE FROM teachers WHERE id = ?", id)
+	if err != nil {
+		log.Println("Error deleting teacher: ", err)
+		http.Error(w, "Error deleting teacher", http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Println("Error retrieving delete result: ", err)
+		http.Error(w, "Error retrieving delete result", http.StatusInternalServerError)
+		return
+	}
+
+	if rowsAffected == 0 {
+		http.Error(w, "Teacher not found", http.StatusNotFound)
+		return
+	}
+
+	// w.WriteHeader(http.StatusNoContent)
+
+	//response body
+	w.Header().Set("Content-Type", "application/json")
+	response := struct {
+		Status string `json:"status"`
+		ID     int    `json:"id"`
+	}{
+		Status: "Teacher successfully deleted",
+		ID:     id,
+	}
+	json.NewEncoder(w).Encode(response)
 }
