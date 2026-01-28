@@ -1,0 +1,24 @@
+# Models are used for -
+    - data representation
+    - data validation
+    - abstraction
+    - documentation
+    - security
+
+# Industry Standards for models -
+    -naming conventions
+    -field tags
+    -validation
+    -modularity
+
+# Importance
+    -data integrity
+    -maintainibility
+    -scalability
+    -versioning
+
+# Common pitfalls
+    -tight coupling
+    -overcomplicating models
+    -ignoring validation
+    -lack of documentation
