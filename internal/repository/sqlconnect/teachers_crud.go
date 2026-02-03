@@ -2,6 +2,8 @@ package sqlconnect
 
 import (
 	"database/sql"
+	"fmt"
+	"log"
 	"net/http"
 	"reflect"
 	"school-management/internal/models"
@@ -124,25 +126,69 @@ func AddTeachersDbHandler(addedTeachers []models.Teacher, newTeachers []models.T
 	}
 	defer db.Close()
 
-	stmt, err := db.Prepare("INSERT INTO teachers (first_name, last_name, email, class, subject) VALUES(?,?,?,?,?)")
+	// stmt, err := db.Prepare("INSERT INTO teachers (first_name, last_name, email, class, subject) VALUES(?,?,?,?,?)")
+	stmt, err := db.Prepare(generateInsetQuery(models.Teacher{}))
 	if err != nil {
-		return nil, utils.ErrorHandler(err, "Error preparing query")
+		return nil, utils.ErrorHandler(err, "Error updating teacher")
 	}
 	defer stmt.Close()
 
-	for i, newTeacher := range newTeachers {
-		res, err := stmt.Exec(newTeacher.FirstName, newTeacher.LastName, newTeacher.Email, newTeacher.Class, newTeacher.Subject)
+	for _, newTeacher := range newTeachers {
+		values := getStructValues(newTeacher)
+		// res, err := stmt.Exec(newTeacher.FirstName, newTeacher.LastName, newTeacher.Email, newTeacher.Class, newTeacher.Subject)
+		res, err := stmt.Exec(values...)
 		if err != nil {
-			return nil, utils.ErrorHandler(err, "Error executing query")
+			if strings.Contains(err.Error(), "duplicate") {
+				return nil, utils.ErrorHandler(err, "")
+			}
+			return nil, utils.ErrorHandler(err, "Error updating teacher")
 		}
 		lastID, err := res.LastInsertId()
 		if err != nil {
-			return nil, utils.ErrorHandler(err, "Error getting last interted id")
+			return nil, utils.ErrorHandler(err, "Error updating teacher")
 		}
 		newTeacher.ID = int(lastID)
-		addedTeachers[i] = newTeacher
+		addedTeachers = append(addedTeachers, newTeacher)
 	}
 	return addedTeachers, nil
+}
+
+func generateInsetQuery(model interface{}) string {
+	modelType := reflect.TypeOf(model)
+	var columns, placeholders string
+
+	for i := 0; i < modelType.NumField(); i++ {
+		dbTag := modelType.Field(i).Tag.Get("db")
+		dbTag = strings.TrimSuffix(dbTag, ",omitempty")
+		fmt.Println("dbTag", dbTag)
+
+		if dbTag != "" && dbTag != "id" { // skip id field if its auto increment
+			if columns != "" {
+				columns += ", "
+				placeholders += ", "
+			}
+			columns += dbTag
+			placeholders += "?"
+		}
+	}
+	fmt.Printf("INSERT INTO teachers (%s) Values (%s)\n", columns, placeholders)
+	return fmt.Sprintf("INSERT INTO teachers (%s) Values (%s)", columns, placeholders)
+}
+
+func getStructValues(model interface{}) []interface{} {
+	modelValue := reflect.ValueOf(model)
+	modelType := modelValue.Type()
+
+	values := []interface{}{}
+
+	for i := 0; i < modelType.NumField(); i++ {
+		dbTag := modelType.Field(i).Tag.Get("db")
+		if dbTag != "" && dbTag != "id,omitempty" {
+			values = append(values, modelValue.Field(i).Interface())
+		}
+	}
+	log.Println("Values:", values)
+	return values
 }
 
 func UpdateTeacherByIdDbHandle(id int, updatedTeacher models.Teacher) (models.Teacher, error) {
