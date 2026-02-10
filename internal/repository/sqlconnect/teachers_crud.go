@@ -3,7 +3,6 @@ package sqlconnect
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"reflect"
 	"school-management/internal/models"
@@ -171,7 +170,6 @@ func generateInsetQuery(model interface{}) string {
 			placeholders += "?"
 		}
 	}
-	fmt.Printf("INSERT INTO teachers (%s) Values (%s)\n", columns, placeholders)
 	return fmt.Sprintf("INSERT INTO teachers (%s) Values (%s)", columns, placeholders)
 }
 
@@ -187,7 +185,6 @@ func getStructValues(model interface{}) []interface{} {
 			values = append(values, modelValue.Field(i).Interface())
 		}
 	}
-	log.Println("Values:", values)
 	return values
 }
 
