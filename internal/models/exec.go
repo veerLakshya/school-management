@@ -3,17 +3,17 @@ package models
 import "database/sql"
 
 type Exec struct {
-	ID                 int
-	FirstName          string
-	LastName           string
-	Email              string
-	Username           string
-	Password           string
-	Role               string
-	InactiveStatusCode bool
+	ID                 int    `json:"id,omitempty" db:"id,omitempty"`
+	FirstName          string `json:"first_name,omitempty" db:"first_name,omitempty"`
+	LastName           string `json:"last_name,omitempty" db:"last_name,omitempty"`
+	Email              string `json:"email,omitempty" db:"email,omitempty"`
+	Username           string `json:"username,omitempty" db:"username,omitempty"`
+	Password           string `json:"password,omitempty" db:"password,omitempty"`
+	Role               string `json:"role,omitempty" db:"role,omitempty"`
+	InactiveStatusCode bool   `json:"inactive_status,omitempty" db:"inactive_status,omitempty"`
 
-	UserUpdatedAt       sql.NullString
-	UserCreatedAt       sql.NullString
-	PasswordResetCode   sql.NullString
-	PasswordCodeExpires sql.NullString
+	UserUpdatedAt       sql.NullString `json:"user_updated_at,omitempty" db:"user_updated_at,omitempty"`
+	UserCreatedAt       sql.NullString `json:"user_created_at,omitempty" db:"user_created_at,omitempty"`
+	PasswordResetCode   sql.NullString `json:"password_reset_code,omitempty" db:"password_reset_token,omitempty"`
+	PasswordCodeExpires sql.NullString `json:"password_code_expires,omitempty" db:"password_code_expires,omitempty"`
 }
