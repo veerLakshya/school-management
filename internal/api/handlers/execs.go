@@ -163,6 +163,7 @@ func PatchExecsHandler(w http.ResponseWriter, r *http.Request) {
 	var updates []map[string]interface{}
 	err := json.NewDecoder(r.Body).Decode(&updates)
 	if err != nil {
+		log.Printf("error decoding: %s", err)
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
