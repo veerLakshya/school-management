@@ -1,7 +1,10 @@
 package sqlconnect
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -9,6 +12,8 @@ import (
 	"school-management/pkg/utils"
 	"strconv"
 	"strings"
+
+	"golang.org/x/crypto/argon2"
 )
 
 func GetExecByIdDbHandler(id int) (models.Exec, error) {
@@ -70,14 +75,29 @@ func AddExecsDbHandler(addedExecs []models.Exec, newExecs []models.Exec) ([]mode
 
 	// stmt, err := db.Prepare("INSERT INTO Execs (first_name, last_name, email) VALUES(?,?,?,?,?)")
 	stmt, err := db.Prepare(utils.GenerateInsertQuery("execs", models.Exec{}))
-	query := utils.GenerateInsertQuery("execs", models.Exec{})
-	fmt.Println("stmt:", query)
 	if err != nil {
 		return nil, utils.ErrorHandler(err, "Error updating Execs")
 	}
 	defer stmt.Close()
 
 	for _, newExec := range newExecs {
+		if newExec.Password == "" {
+			return nil, utils.ErrorHandler(errors.New("please is blank"), "please enter password")
+		}
+
+		salt := make([]byte, 16)
+		_, err := rand.Read(salt)
+		if err != nil {
+			return nil, utils.ErrorHandler(errors.New("failed to generate sale"), "error adding data")
+		}
+
+		hash := argon2.IDKey([]byte(newExec.Password), salt, 1, 64*1024, 4, 32)
+		saltBase64 := base64.StdEncoding.EncodeToString(salt)
+		hashBase64 := base64.StdEncoding.EncodeToString(hash)
+
+		encodedHash := fmt.Sprintf("%s, %s", saltBase64, hashBase64)
+		newExec.Password = encodedHash
+
 		values := utils.GetStructValues(newExec)
 		res, err := stmt.Exec(values...)
 		if err != nil {
